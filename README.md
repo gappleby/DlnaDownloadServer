@@ -99,6 +99,35 @@ All configuration is via environment variables (or the `.env` file when using Do
 | `FETCH_PORT` | `49152` | DLNA port on the Fetch TV box |
 | `OUTPUT_DIR` | `/output` | Directory where recordings are saved |
 | `FFMPEG_PATH` | `ffmpeg` | Path to ffmpeg binary (if not on PATH) |
+| `APP_NAME` | `Fetch TV Downloader` | Name shown in the browser tab and page header |
+| `ROOT_PATH` | _(empty)_ | Sub-path prefix when running behind a reverse proxy (e.g. `/fetchtv`) |
+
+---
+
+## Reverse Proxy
+
+All frontend API calls use relative URLs, so the app works correctly behind a reverse proxy regardless of SSL or port. Set `ROOT_PATH` to the sub-path prefix so FastAPI advertises the correct base URL in its OpenAPI docs.
+
+The proxy should **strip the prefix** before forwarding. Example nginx config:
+
+```nginx
+location /fetchtv/ {
+    proxy_pass http://127.0.0.1:8000/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    # Required for SSE (Server-Sent Events)
+    proxy_buffering off;
+    proxy_cache off;
+}
+```
+
+`.env` for this setup:
+```
+ROOT_PATH=/fetchtv
+```
+
+Access the app at `https://your-host/fetchtv/`.
 
 ---
 
@@ -120,6 +149,7 @@ The backend exposes a small REST API that the frontend uses. It can also be call
 | `DELETE` | `/api/queue/done` | Remove completed/errored items from queue |
 | `GET` | `/api/progress` | SSE stream of real-time queue updates |
 | `GET` | `/api/qualities` | List available quality presets |
+| `GET` | `/api/config` | Returns `app_name`, `fetch_host`, and `root_path` |
 
 **POST `/api/download` body:**
 ```json

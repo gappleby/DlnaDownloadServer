@@ -15,14 +15,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-app = FastAPI()
-
 FETCH_HOST = os.environ.get("FETCH_HOST", "10.0.0.14")
 FETCH_PORT = os.environ.get("FETCH_PORT", "49152")
 DEVICE_URL = f"http://{FETCH_HOST}:{FETCH_PORT}"
 CDS_CONTROL = f"{DEVICE_URL}/web/cds_control"
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "/output"))
 FFMPEG = os.environ.get("FFMPEG_PATH", "ffmpeg")
+APP_NAME = os.environ.get("APP_NAME", "Fetch TV Downloader")
+ROOT_PATH = os.environ.get("ROOT_PATH", "")
+
+app = FastAPI(root_path=ROOT_PATH)
 
 NS = {
     "d": "urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/",
@@ -211,6 +213,11 @@ async def api_browse(object_id: str):
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
     return {"children": children}
+
+
+@app.get("/api/config")
+async def api_config():
+    return {"app_name": APP_NAME, "fetch_host": FETCH_HOST, "root_path": ROOT_PATH}
 
 
 @app.get("/api/qualities")

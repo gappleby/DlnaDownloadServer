@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fetch TV Downloader</title>
+<title id="page-title">Fetch TV Downloader</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -277,8 +277,8 @@
 
 <header>
   <span style="font-size:22px">📺</span>
-  <h1>Fetch TV Downloader</h1>
-  <span class="subtitle">10.0.0.14</span>
+  <h1 id="app-name">Fetch TV Downloader</h1>
+  <span class="subtitle" id="app-host">10.0.0.14</span>
 </header>
 
 <div class="layout">
@@ -321,7 +321,7 @@ const queuedKeys = new Set();
 // ---------------------------------------------------------------------------
 
 async function browse(id) {
-  const r = await fetch(`/api/browse/${id}`);
+  const r = await fetch(`api/browse/${id}`);
   if (!r.ok) throw new Error(`Browse failed: ${r.status}`);
   return (await r.json()).children;
 }
@@ -478,7 +478,7 @@ async function queueDownload(item, path, quality) {
     b.textContent = '✓';
   });
 
-  const resp = await fetch('/api/download', {
+  const resp = await fetch('api/download', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -542,7 +542,7 @@ function renderQueueItem(task) {
 // ---------------------------------------------------------------------------
 
 function connectSSE() {
-  const es = new EventSource('/api/progress');
+  const es = new EventSource('api/progress');
 
   es.onmessage = (e) => {
     let data;
@@ -572,7 +572,7 @@ function connectSSE() {
 // ---------------------------------------------------------------------------
 
 document.getElementById('btn-clear').addEventListener('click', async () => {
-  await fetch('/api/queue/done', { method: 'DELETE' });
+  await fetch('api/queue/done', { method: 'DELETE' });
   document.querySelectorAll('.queue-item.status-done, .queue-item.status-skipped, .queue-item.status-error')
     .forEach(el => el.remove());
   updateQueueEmpty();
@@ -580,7 +580,14 @@ document.getElementById('btn-clear').addEventListener('click', async () => {
 
 async function init() {
   try {
-    const r = await fetch('/api/queue');
+    const cfg = await (await fetch('api/config')).json();
+    document.getElementById('page-title').textContent = cfg.app_name;
+    document.getElementById('app-name').textContent = cfg.app_name;
+    document.getElementById('app-host').textContent = cfg.fetch_host;
+  } catch(e) { console.warn('Could not load config', e); }
+
+  try {
+    const r = await fetch('api/queue');
     const tasks = await r.json();
     tasks.forEach(t => {
       renderQueueItem(t);

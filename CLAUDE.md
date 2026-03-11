@@ -54,9 +54,15 @@ On a Linux Docker host (no Docker Desktop), use `network_mode: host` in `docker-
 - `list_shows()` — lists top-level containers (one per recorded show) with child counts.
 - Container ID `1` is the root Recordings container on Fetch TV boxes.
 
-### Web Service (`app/`) — not yet implemented
+### Web Service (`app/`)
 
-The Dockerfile expects a FastAPI app at `app/main:app` (uvicorn entry point). `requirements.txt` pins `fastapi==0.115.6` and `uvicorn[standard]==0.32.1`.
+FastAPI app at `app/main.py` (uvicorn entry point `main:app`). Single-page HTML/JS frontend at `app/static/index.html` — no build step.
+
+- DLNA browsing via `GET /api/browse/{object_id}`
+- Download queue managed in-memory; SSE stream at `GET /api/progress` pushes real-time updates
+- Three quality presets (`hd`/`hq`/`sd`) defined in `QUALITY_PRESETS` dict — each specifies ffmpeg args and output filename suffix
+- All frontend `fetch()` calls use relative URLs (no leading `/`) so the app works behind a reverse proxy at any sub-path
+- `APP_NAME` and `ROOT_PATH` are exposed via `GET /api/config` and applied by the frontend on load
 
 ## Environment Variables
 
@@ -66,3 +72,5 @@ The Dockerfile expects a FastAPI app at `app/main:app` (uvicorn entry point). `r
 | `FETCH_PORT` | `49152` | DLNA port |
 | `OUTPUT_DIR` | `./recordings` | Host path for downloaded files |
 | `FFMPEG_PATH` | (PATH lookup) | Override ffmpeg binary location |
+| `APP_NAME` | `Fetch TV Downloader` | Name shown in browser tab and page header |
+| `ROOT_PATH` | _(empty)_ | Sub-path prefix for reverse proxy deployments (e.g. `/fetchtv`) |

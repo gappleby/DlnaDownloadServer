@@ -11,6 +11,8 @@ services:
       - FETCH_HOST=${FETCH_HOST}
       - FETCH_PORT=${FETCH_PORT:-49152}
       - OUTPUT_DIR=/output
+      - APP_NAME=${APP_NAME:-Fetch TV Downloader}
+      - ROOT_PATH=${ROOT_PATH:-}
     restart: unless-stopped
     # Docker Desktop for Windows/Mac routes to the LAN automatically.
     # On a plain Linux Docker host, replace the above with:

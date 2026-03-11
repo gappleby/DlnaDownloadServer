@@ -42,11 +42,13 @@ Add a port mapping:
 | `8000` | `8000` | TCP |
 
 **Environment variables**
-| Name | Value |
-|------|-------|
-| `FETCH_HOST` | `10.0.0.14` |
-| `FETCH_PORT` | `49152` |
-| `OUTPUT_DIR` | `/output` |
+| Name | Value | Notes |
+|------|-------|-------|
+| `FETCH_HOST` | `10.0.0.14` | IP of the Fetch TV box |
+| `FETCH_PORT` | `49152` | DLNA port |
+| `OUTPUT_DIR` | `/output` | Must match the container path in the volume mount |
+| `APP_NAME` | `Fetch TV Downloader` | Optional — name shown in browser tab and header |
+| `ROOT_PATH` | _(empty)_ | Optional — set to your reverse proxy sub-path e.g. `/fetchtv` |
 
 **Storage (volume mount)**
 
@@ -106,6 +108,8 @@ services:
       - FETCH_HOST=10.0.0.14
       - FETCH_PORT=49152
       - OUTPUT_DIR=/output
+      - APP_NAME=Fetch TV Downloader
+      # - ROOT_PATH=/fetchtv   # uncomment if using a reverse proxy sub-path
     restart: unless-stopped
 EOF
 ```
