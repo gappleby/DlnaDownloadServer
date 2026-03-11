@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fetch TV Downloader</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #111318;
+    --surface: #1a1d24;
+    --surface2: #22262f;
+    --border: #2e3340;
+    --text: #e2e4ea;
+    --text-dim: #8b90a0;
+    --accent: #4f8ef7;
+    --accent-dim: #2a4a8a;
+    --green: #3ecf8e;
+    --red: #f05252;
+    --yellow: #f0a52a;
+    --orange: #f07a2a;
+    --radius: 8px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  header .subtitle { font-size: 13px; color: var(--text-dim); }
+
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Browser Panel ── */
+  .browser {
+    width: 52%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .panel-header h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+
+  .tree-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+  /* Tree nodes */
+  .tree-node { user-select: none; }
+
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 16px;
+    cursor: pointer;
+    transition: background 0.1s;
+    min-height: 34px;
+  }
+  .tree-row:hover { background: var(--surface2); }
+
+  .tree-row .arrow {
+    width: 14px;
+    font-size: 10px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+  .tree-row.open .arrow { transform: rotate(90deg); }
+  .tree-row .icon { font-size: 14px; flex-shrink: 0; }
+  .tree-row .label { flex: 1; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree-row .count { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+
+  /* "All" quality buttons on container hover */
+  .tree-row .bulk-btns {
+    display: none;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .tree-row:hover .bulk-btns { display: flex; }
+  .btn-bulk {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-weight: 600;
+  }
+  .btn-bulk.hd { background: #1a2a4a; color: var(--accent); border-color: var(--accent-dim); }
+  .btn-bulk.hq { background: #1a3a2a; color: var(--green); border-color: #1a5a3a; }
+  .btn-bulk.sd { background: #3a2a1a; color: var(--orange); border-color: #5a3a1a; }
+  .btn-bulk:hover.hd { background: var(--accent); color: #fff; }
+  .btn-bulk:hover.hq { background: var(--green); color: #000; }
+  .btn-bulk:hover.sd { background: var(--orange); color: #fff; }
+  .btn-bulk:disabled { opacity: 0.4; cursor: default; }
+
+  .tree-children { display: none; }
+  .tree-children.open { display: block; }
+
+  /* Video items */
+  .video-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 16px;
+    min-height: 36px;
+    transition: background 0.1s;
+  }
+  .video-item:hover { background: var(--surface2); }
+  .video-item .icon { font-size: 13px; flex-shrink: 0; }
+  .video-item .label { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .video-item .meta { font-size: 11px; color: var(--text-dim); flex-shrink: 0; white-space: nowrap; }
+
+  /* Per-item quality buttons */
+  .item-btns {
+    display: none;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .video-item:hover .item-btns { display: flex; }
+  .btn-q {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: none;
+    font-weight: 600;
+  }
+  .btn-q.hd { background: var(--accent); color: #fff; }
+  .btn-q.hq { background: var(--green); color: #000; }
+  .btn-q.sd { background: var(--orange); color: #fff; }
+  .btn-q:hover { opacity: 0.85; }
+  .btn-q:disabled { background: var(--surface2); color: var(--text-dim); cursor: default; }
+
+  .loading-row {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  /* Indent levels */
+  [data-depth="1"] .tree-row, [data-depth="1"] .video-item { padding-left: 32px; }
+  [data-depth="2"] .tree-row, [data-depth="2"] .video-item { padding-left: 52px; }
+  [data-depth="3"] .tree-row, [data-depth="3"] .video-item { padding-left: 72px; }
+  [data-depth="4"] .tree-row, [data-depth="4"] .video-item { padding-left: 92px; }
+
+  /* ── Queue Panel ── */
+  .queue-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .queue-scroll { flex: 1; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+  .btn-clear {
+    font-size: 12px;
+    padding: 4px 12px;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .btn-clear:hover { border-color: var(--text-dim); color: var(--text); }
+
+  .queue-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    font-size: 13px;
+    gap: 8px;
+  }
+  .queue-empty .icon { font-size: 36px; opacity: 0.4; }
+
+  .queue-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .queue-item.status-done { border-color: #1a3d2e; }
+  .queue-item.status-error { border-color: #3d1a1a; }
+  .queue-item.status-downloading { border-color: var(--accent-dim); }
+
+  .qi-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qi-path { font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: monospace; }
+
+  .qi-row { display: flex; align-items: center; gap: 8px; }
+  .qi-status {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    padding: 2px 7px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .qi-status.queued      { background: #2a2a3a; color: var(--text-dim); }
+  .qi-status.downloading { background: var(--accent-dim); color: var(--accent); }
+  .qi-status.done        { background: #1a3d2e; color: var(--green); }
+  .qi-status.skipped     { background: #2a2a3a; color: var(--text-dim); }
+  .qi-status.error       { background: #3d1a1a; color: var(--red); }
+
+  .qi-quality {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .qi-quality.hd { background: #1a2a4a; color: var(--accent); }
+  .qi-quality.hq { background: #1a3a2a; color: var(--green); }
+  .qi-quality.sd { background: #3a2a1a; color: var(--orange); }
+
+  .qi-pct { font-size: 11px; color: var(--text-dim); flex-shrink: 0; min-width: 38px; text-align: right; }
+  .qi-duration { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+
+  .progress-bar {
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+  .status-done .progress-fill { background: var(--green); }
+
+  .qi-error { font-size: 11px; color: var(--red); word-break: break-all; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:22px">📺</span>
+  <h1>Fetch TV Downloader</h1>
+  <span class="subtitle">10.0.0.14</span>
+</header>
+
+<div class="layout">
+
+  <!-- Browser -->
+  <div class="browser">
+    <div class="panel-header">
+      <h2>DLNA Browser</h2>
+    </div>
+    <div class="tree-scroll" id="tree">
+      <div class="loading-row">Connecting to device…</div>
+    </div>
+  </div>
+
+  <!-- Queue -->
+  <div class="queue-panel">
+    <div class="panel-header">
+      <h2>Download Queue</h2>
+      <button class="btn-clear" id="btn-clear">Clear Done</button>
+    </div>
+    <div class="queue-scroll" id="queue">
+      <div class="queue-empty" id="queue-empty">
+        <span class="icon">⬇</span>
+        <span>No downloads yet</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// State: track queued URLs per quality to disable duplicate buttons
+// ---------------------------------------------------------------------------
+// key: `${url}::${quality}` → true
+const queuedKeys = new Set();
+
+// ---------------------------------------------------------------------------
+// DLNA Tree
+// ---------------------------------------------------------------------------
+
+async function browse(id) {
+  const r = await fetch(`/api/browse/${id}`);
+  if (!r.ok) throw new Error(`Browse failed: ${r.status}`);
+  return (await r.json()).children;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildTree(children, path, depth, parentEl) {
+  for (const child of children) {
+    parentEl.appendChild(child.type === 'container'
+      ? buildContainer(child, path, depth)
+      : buildItem(child, path, depth));
+  }
+}
+
+function buildContainer(node, parentPath, depth) {
+  const path = [...parentPath, node.title];
+
+  const wrap = document.createElement('div');
+  wrap.className = 'tree-node';
+  wrap.dataset.depth = depth;
+
+  const row = document.createElement('div');
+  row.className = 'tree-row';
+  row.innerHTML = `
+    <span class="arrow">▶</span>
+    <span class="icon">📁</span>
+    <span class="label" title="${esc(node.title)}">${esc(node.title)}</span>
+    <span class="count">${node.childCount}</span>
+    <div class="bulk-btns">
+      <button class="btn-bulk hd" title="Queue all at original HD quality">↓ HD</button>
+      <button class="btn-bulk hq" title="Queue all at HQ (H.264 CRF 20)">↓ HQ</button>
+      <button class="btn-bulk sd" title="Queue all at SD 720p">↓ SD</button>
+    </div>
+  `;
+
+  const childrenDiv = document.createElement('div');
+  childrenDiv.className = 'tree-children';
+  let loaded = false;
+
+  const toggleFns = ['.arrow', '.label', '.count', '.icon'].map(sel =>
+    row.querySelector(sel)
+  );
+  toggleFns.forEach(el => el && el.addEventListener('click', (e) => { e.stopPropagation(); toggle(); }));
+
+  async function toggle() {
+    const open = childrenDiv.classList.contains('open');
+    if (!open) {
+      if (!loaded) {
+        loaded = true;
+        childrenDiv.innerHTML = '<div class="loading-row">Loading…</div>';
+        childrenDiv.classList.add('open');
+        row.classList.add('open');
+        try {
+          const children = await browse(node.id);
+          childrenDiv.innerHTML = '';
+          buildTree(children, path, depth + 1, childrenDiv);
+        } catch(e) {
+          childrenDiv.innerHTML = `<div class="loading-row" style="color:#f05252">Error: ${esc(e.message)}</div>`;
+        }
+      } else {
+        childrenDiv.classList.add('open');
+        row.classList.add('open');
+      }
+    } else {
+      childrenDiv.classList.remove('open');
+      row.classList.remove('open');
+    }
+  }
+
+  ['hd', 'hq', 'sd'].forEach(q => {
+    row.querySelector(`.btn-bulk.${q}`).addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.textContent = '…';
+      btn.disabled = true;
+      try {
+        await downloadAll(node.id, path, q);
+      } finally {
+        btn.textContent = `↓ ${q.toUpperCase()}`;
+        btn.disabled = false;
+      }
+    });
+  });
+
+  wrap.appendChild(row);
+  wrap.appendChild(childrenDiv);
+  return wrap;
+}
+
+function buildItem(item, path, depth) {
+  const wrap = document.createElement('div');
+  wrap.className = 'video-item';
+  wrap.dataset.depth = depth;
+  wrap.dataset.url = item.url;
+
+  const btnStates = {};
+  ['hd', 'hq', 'sd'].forEach(q => {
+    btnStates[q] = queuedKeys.has(`${item.url}::${q}`);
+  });
+
+  wrap.innerHTML = `
+    <span class="icon">🎬</span>
+    <span class="label" title="${esc(item.title)}">${esc(item.title)}</span>
+    <span class="meta">${esc(item.duration)} · ${esc(item.size_fmt)}</span>
+    <div class="item-btns">
+      <button class="btn-q hd" ${btnStates.hd ? 'disabled' : ''} title="Download original quality (no re-encode)">${btnStates.hd ? '✓' : 'HD'}</button>
+      <button class="btn-q hq" ${btnStates.hq ? 'disabled' : ''} title="Download HQ H.264 (CRF 20)">${btnStates.hq ? '✓' : 'HQ'}</button>
+      <button class="btn-q sd" ${btnStates.sd ? 'disabled' : ''} title="Download SD 720p">${btnStates.sd ? '✓' : 'SD'}</button>
+    </div>
+  `;
+
+  ['hd', 'hq', 'sd'].forEach(q => {
+    wrap.querySelector(`.btn-q.${q}`).addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      const orig = btn.textContent;
+      btn.textContent = '…';
+      try {
+        await queueDownload(item, path, q);
+        btn.textContent = '✓';
+      } catch(err) {
+        btn.textContent = orig;
+        btn.disabled = false;
+        console.error(err);
+      }
+    });
+  });
+
+  return wrap;
+}
+
+async function downloadAll(containerId, path, quality) {
+  const children = await browse(containerId);
+  for (const child of children) {
+    if (child.type === 'item') {
+      await queueDownload(child, path, quality);
+    } else if (child.type === 'container') {
+      await downloadAll(child.id, [...path, child.title], quality);
+    }
+  }
+}
+
+async function queueDownload(item, path, quality) {
+  const key = `${item.url}::${quality}`;
+  if (queuedKeys.has(key)) return;
+  queuedKeys.add(key);
+
+  // Update matching buttons in the tree
+  document.querySelectorAll(`.video-item[data-url="${CSS.escape(item.url)}"] .btn-q.${quality}`).forEach(b => {
+    b.disabled = true;
+    b.textContent = '✓';
+  });
+
+  const resp = await fetch('/api/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: item.title,
+      path,
+      url: item.url,
+      size: item.size,
+      duration: item.duration,
+      quality,
+    }),
+  });
+  if (!resp.ok) throw new Error(`Queue failed: ${resp.status}`);
+}
+
+// ---------------------------------------------------------------------------
+// Queue Panel
+// ---------------------------------------------------------------------------
+
+function updateQueueEmpty() {
+  const items = document.querySelectorAll('.queue-item');
+  document.getElementById('queue-empty').style.display = items.length ? 'none' : 'flex';
+}
+
+function renderQueueItem(task) {
+  let el = document.getElementById(`task-${task.id}`);
+  const isNew = !el;
+  if (isNew) {
+    el = document.createElement('div');
+    el.id = `task-${task.id}`;
+    el.className = 'queue-item';
+    document.getElementById('queue').prepend(el);
+    updateQueueEmpty();
+  }
+
+  el.className = `queue-item status-${task.status}`;
+
+  const showProgress = ['downloading', 'done', 'skipped'].includes(task.status);
+  const pct = task.progress ?? 0;
+  const fillPct = (task.status === 'done' || task.status === 'skipped') ? 100 : pct;
+
+  el.innerHTML = `
+    <div class="qi-title" title="${esc(task.title)}">${esc(task.title)}</div>
+    <div class="qi-path" title="${esc(task.output_path)}">${esc(task.output_path)}</div>
+    ${showProgress ? `
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:${fillPct}%"></div>
+      </div>
+    ` : ''}
+    <div class="qi-row">
+      <span class="qi-status ${task.status}">${task.status.toUpperCase()}</span>
+      <span class="qi-quality ${task.quality}">${esc(task.quality_label)}</span>
+      ${task.duration ? `<span class="qi-duration">${esc(task.duration)}</span>` : ''}
+      ${task.status === 'downloading' ? `<span class="qi-pct">${pct}%</span>` : ''}
+    </div>
+    ${task.error ? `<div class="qi-error">${esc(task.error)}</div>` : ''}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// SSE
+// ---------------------------------------------------------------------------
+
+function connectSSE() {
+  const es = new EventSource('/api/progress');
+
+  es.onmessage = (e) => {
+    let data;
+    try { data = JSON.parse(e.data); } catch { return; }
+
+    if (data.type === 'cleared') {
+      data.ids.forEach(id => document.getElementById(`task-${id}`)?.remove());
+      updateQueueEmpty();
+      return;
+    }
+    if (data.task) {
+      renderQueueItem(data.task);
+      if (data.task.url && data.task.quality) {
+        queuedKeys.add(`${data.task.url}::${data.task.quality}`);
+      }
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectSSE, 4000);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
+document.getElementById('btn-clear').addEventListener('click', async () => {
+  await fetch('/api/queue/done', { method: 'DELETE' });
+});
+
+async function init() {
+  try {
+    const r = await fetch('/api/queue');
+    const tasks = await r.json();
+    tasks.forEach(t => {
+      renderQueueItem(t);
+      if (t.url && t.quality) queuedKeys.add(`${t.url}::${t.quality}`);
+    });
+    updateQueueEmpty();
+  } catch(e) { console.warn('Could not load queue', e); }
+
+  connectSSE();
+
+  const treeEl = document.getElementById('tree');
+  try {
+    const children = await browse('0');
+    treeEl.innerHTML = '';
+    buildTree(children, [], 0, treeEl);
+  } catch(e) {
+    treeEl.innerHTML = `<div class="loading-row" style="color:#f05252">Failed to connect to DLNA device: ${esc(e.message)}</div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
