@@ -573,6 +573,9 @@ function connectSSE() {
 
 document.getElementById('btn-clear').addEventListener('click', async () => {
   await fetch('/api/queue/done', { method: 'DELETE' });
+  document.querySelectorAll('.queue-item.status-done, .queue-item.status-skipped, .queue-item.status-error')
+    .forEach(el => el.remove());
+  updateQueueEmpty();
 });
 
 async function init() {
