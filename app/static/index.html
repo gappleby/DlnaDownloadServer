@@ -529,7 +529,7 @@ function renderQueueItem(task) {
     el = document.createElement('div');
     el.id = `task-${task.id}`;
     el.className = 'queue-item';
-    document.getElementById('queue').prepend(el);
+    document.getElementById('queue').append(el);
     updateQueueEmpty();
   }
 
