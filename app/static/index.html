@@ -238,18 +238,16 @@
   .qi-status.cancelled   { background: #2a2020; color: var(--yellow); }
 
   .btn-cancel {
-    margin-top: 4px;
-    width: 100%;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 0;
-    background: #3d1a1a;
-    color: var(--red);
-    border: 1px solid #6b2a2a;
-    border-radius: 4px;
+    background: none;
+    border: none;
     cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
+    color: var(--text-dim);
+    line-height: 1;
+    flex-shrink: 0;
   }
-  .btn-cancel:hover { background: var(--red); color: #fff; }
+  .btn-cancel:hover { color: var(--red); }
 
   .qi-quality {
     font-size: 10px;
@@ -550,9 +548,9 @@ function renderQueueItem(task) {
       <span class="qi-quality ${task.quality || 'hd'}">${esc(qualityLabel)}</span>
       ${task.duration ? `<span class="qi-duration">${esc(task.duration)}</span>` : ''}
       ${task.status === 'downloading' ? `<span class="qi-pct">${pct}%</span>` : ''}
+      ${cancellable ? `<button class="btn-cancel" title="Cancel">🗑</button>` : ''}
     </div>
     ${task.error ? `<div class="qi-error">${esc(task.error)}</div>` : ''}
-    ${cancellable ? `<button class="btn-cancel">Cancel</button>` : ''}
   `;
 
   if (cancellable) {
