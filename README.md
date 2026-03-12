@@ -2,7 +2,7 @@
 
 A web application for downloading recordings from a **Fetch TV** set-top box over its built-in DLNA/UPnP media server. Browse your recorded content, queue downloads at your chosen quality, and save them as `.mkv` files — all from a browser.
 
-![UI screenshot placeholder](docs/screenshot.png)
+![UI screenshot](docs/screenshot.png)
 
 ---
 
