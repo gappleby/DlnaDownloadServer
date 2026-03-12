@@ -238,16 +238,18 @@
   .qi-status.cancelled   { background: #2a2020; color: var(--yellow); }
 
   .btn-cancel {
-    background: none;
-    border: none;
+    background: #2a2020;
+    border: 1px solid #3d2020;
+    border-radius: 4px;
     cursor: pointer;
     font-size: 13px;
-    padding: 0 2px;
+    padding: 2px 7px;
     color: var(--text-dim);
     line-height: 1;
     flex-shrink: 0;
+    margin-left: auto;
   }
-  .btn-cancel:hover { color: var(--red); }
+  .btn-cancel:hover { background: #3d1a1a; border-color: var(--red); color: var(--red); }
 
   .qi-quality {
     font-size: 10px;
@@ -284,6 +286,79 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Mobile tabs ── */
+  .mobile-tabs {
+    display: none;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .mobile-tab {
+    flex: 1;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    color: var(--text-dim);
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+  }
+  .mobile-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .mobile-badge {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    min-width: 16px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    body { overflow: hidden; }
+
+    .mobile-tabs { display: flex; }
+
+    .layout { position: relative; }
+
+    .browser {
+      width: 100%;
+      border-right: none;
+      position: absolute;
+      inset: 0;
+      transition: transform 0.2s ease;
+    }
+    .browser.hidden { transform: translateX(-100%); }
+
+    .queue-panel {
+      position: absolute;
+      inset: 0;
+      transition: transform 0.2s ease;
+    }
+    .queue-panel.hidden { transform: translateX(100%); }
+
+    /* Always show download buttons on touch — no hover */
+    .item-btns { display: flex; }
+    .bulk-btns { display: flex; }
+
+    /* Larger touch targets */
+    .tree-row { min-height: 44px; padding: 8px 16px; }
+    .video-item { min-height: 44px; padding: 6px 12px; flex-wrap: wrap; gap: 4px; }
+    .video-item .label { width: 100%; }
+    .video-item .meta { font-size: 11px; }
+    .btn-q { padding: 6px 12px; font-size: 12px; }
+    .btn-bulk { padding: 4px 10px; font-size: 11px; }
+    .btn-cancel { padding: 4px 6px; font-size: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -293,6 +368,11 @@
   <h1 id="app-name">Fetch TV Downloader</h1>
   <span class="subtitle" id="app-host">10.0.0.14</span>
 </header>
+
+<div class="mobile-tabs">
+  <button class="mobile-tab active" id="tab-browser" onclick="showTab('browser')">📂 Browse</button>
+  <button class="mobile-tab" id="tab-queue" onclick="showTab('queue')">⬇ Queue <span class="mobile-badge" id="queue-badge" style="display:none">0</span></button>
+</div>
 
 <div class="layout">
 
@@ -558,6 +638,8 @@ function renderQueueItem(task) {
       await fetch(`api/queue/${task.id}`, { method: 'DELETE' });
     });
   }
+
+  updateQueueBadge?.();
 }
 
 // ---------------------------------------------------------------------------
@@ -574,6 +656,7 @@ function connectSSE() {
     if (data.type === 'cleared') {
       data.ids.forEach(id => document.getElementById(`task-${id}`)?.remove());
       updateQueueEmpty();
+      updateQueueBadge?.();
       return;
     }
     if (data.task) {
@@ -643,6 +726,30 @@ async function init() {
     treeEl.innerHTML = `<div class="loading-row" style="color:#f05252">Failed to connect to DLNA device: ${esc(e.message)}</div>`;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Mobile tab switching
+// ---------------------------------------------------------------------------
+
+let activeTab = 'browser';
+function showTab(tab) {
+  activeTab = tab;
+  document.querySelector('.browser').classList.toggle('hidden', tab !== 'browser');
+  document.querySelector('.queue-panel').classList.toggle('hidden', tab !== 'queue');
+  document.getElementById('tab-browser').classList.toggle('active', tab === 'browser');
+  document.getElementById('tab-queue').classList.toggle('active', tab === 'queue');
+}
+
+function updateQueueBadge() {
+  const active = document.querySelectorAll('.queue-item.status-downloading, .queue-item.status-queued').length;
+  const badge = document.getElementById('queue-badge');
+  badge.textContent = active;
+  badge.style.display = active ? '' : 'none';
+}
+
+// Patch renderQueueItem to also update badge
+const _origRender = renderQueueItem;
+// (called inline — override after definition not needed; we call updateQueueBadge in the SSE handler)
 
 init();
 </script>
