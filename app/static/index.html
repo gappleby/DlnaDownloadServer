@@ -235,6 +235,21 @@
   .qi-status.done        { background: #1a3d2e; color: var(--green); }
   .qi-status.skipped     { background: #2a2a3a; color: var(--text-dim); }
   .qi-status.error       { background: #3d1a1a; color: var(--red); }
+  .qi-status.cancelled   { background: #2a2020; color: var(--yellow); }
+
+  .btn-cancel {
+    margin-top: 4px;
+    width: 100%;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 0;
+    background: #3d1a1a;
+    color: var(--red);
+    border: 1px solid #6b2a2a;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .btn-cancel:hover { background: var(--red); color: #fff; }
 
   .qi-quality {
     font-size: 10px;
@@ -518,23 +533,28 @@ function renderQueueItem(task) {
   const showProgress = ['downloading', 'done', 'skipped'].includes(task.status);
   const pct = task.progress ?? 0;
   const fillPct = (task.status === 'done' || task.status === 'skipped') ? 100 : pct;
+  const cancellable = task.status === 'downloading' || task.status === 'queued';
+  const qualityLabel = task.quality_label || (task.quality || 'hd').toUpperCase();
 
   el.innerHTML = `
     <div class="qi-title" title="${esc(task.title)}">${esc(task.title)}</div>
-    <div class="qi-path" title="${esc(task.output_path)}">${esc(task.output_path)}</div>
-    ${showProgress ? `
-      <div class="progress-bar">
-        <div class="progress-fill" style="width:${fillPct}%"></div>
-      </div>
-    ` : ''}
+    <div class="qi-path" title="${esc(task.output_path || '')}">${esc(task.output_path || '')}</div>
+    ${showProgress ? `<div class="progress-bar"><div class="progress-fill" style="width:${fillPct}%"></div></div>` : ''}
     <div class="qi-row">
       <span class="qi-status ${task.status}">${task.status.toUpperCase()}</span>
-      <span class="qi-quality ${task.quality}">${esc(task.quality_label)}</span>
+      <span class="qi-quality ${task.quality || 'hd'}">${esc(qualityLabel)}</span>
       ${task.duration ? `<span class="qi-duration">${esc(task.duration)}</span>` : ''}
       ${task.status === 'downloading' ? `<span class="qi-pct">${pct}%</span>` : ''}
     </div>
     ${task.error ? `<div class="qi-error">${esc(task.error)}</div>` : ''}
+    ${cancellable ? `<button class="btn-cancel">Cancel</button>` : ''}
   `;
+
+  if (cancellable) {
+    el.querySelector('.btn-cancel').addEventListener('click', async () => {
+      await fetch(`api/queue/${task.id}`, { method: 'DELETE' });
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -556,7 +576,16 @@ function connectSSE() {
     if (data.task) {
       renderQueueItem(data.task);
       if (data.task.url && data.task.quality) {
-        queuedKeys.add(`${data.task.url}::${data.task.quality}`);
+        const key = `${data.task.url}::${data.task.quality}`;
+        if (data.task.status === 'cancelled') {
+          queuedKeys.delete(key);
+          document.querySelectorAll(`.video-item[data-url="${CSS.escape(data.task.url)}"] .btn-q.${data.task.quality}`).forEach(b => {
+            b.disabled = false;
+            b.textContent = data.task.quality.toUpperCase();
+          });
+        } else {
+          queuedKeys.add(key);
+        }
       }
     }
   };
@@ -573,7 +602,7 @@ function connectSSE() {
 
 document.getElementById('btn-clear').addEventListener('click', async () => {
   await fetch('api/queue/done', { method: 'DELETE' });
-  document.querySelectorAll('.queue-item.status-done, .queue-item.status-skipped, .queue-item.status-error')
+  document.querySelectorAll('.queue-item.status-done, .queue-item.status-skipped, .queue-item.status-error, .queue-item.status-cancelled')
     .forEach(el => el.remove());
   updateQueueEmpty();
 });

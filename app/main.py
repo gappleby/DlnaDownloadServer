@@ -3,6 +3,7 @@ import html as html_lib
 import json
 import os
 import subprocess
+import threading
 import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
@@ -87,6 +88,8 @@ sse_queues: set[asyncio.Queue] = set()
 _download_queue: asyncio.Queue = None
 _event_loop: asyncio.AbstractEventLoop = None
 executor = ThreadPoolExecutor(max_workers=4)
+# Maps task_id → threading.Event; set to signal cancellation of an active download
+_cancel_events: dict[str, threading.Event] = {}
 
 
 @dataclass
@@ -252,11 +255,28 @@ async def api_get_queue():
 
 @app.delete("/api/queue/done")
 async def api_clear_done():
-    to_remove = [k for k, v in downloads.items() if v.status in ("done", "skipped", "error")]
+    to_remove = [k for k, v in downloads.items() if v.status in ("done", "skipped", "error", "cancelled")]
     for k in to_remove:
         del downloads[k]
     await _broadcast({"type": "cleared", "ids": to_remove})
     return {"removed": len(to_remove)}
+
+
+@app.delete("/api/queue/{task_id}")
+async def api_cancel(task_id: str):
+    task = downloads.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status not in ("queued", "downloading"):
+        raise HTTPException(status_code=400, detail="Task is not cancellable")
+    event = _cancel_events.get(task_id)
+    if event:
+        event.set()  # signal the download thread to stop
+    else:
+        # Still queued — mark cancelled directly so the worker skips it
+        task.status = "cancelled"
+        await _broadcast({"type": "update", "task": task.to_dict()})
+    return {"ok": True}
 
 
 @app.get("/api/progress")
@@ -294,7 +314,7 @@ async def _worker():
     while True:
         task_id = await _download_queue.get()
         task = downloads.get(task_id)
-        if not task:
+        if not task or task.status == "cancelled":
             continue
         task.status = "downloading"
         await _broadcast({"type": "update", "task": task.to_dict()})
@@ -311,6 +331,9 @@ def _download_sync(task: DownloadTask):
     def send(data: dict):
         asyncio.run_coroutine_threadsafe(_broadcast(data), _event_loop)
 
+    cancel = threading.Event()
+    _cancel_events[task.id] = cancel
+
     preset = QUALITY_PRESETS.get(task.quality, QUALITY_PRESETS["hd"])
 
     parts = [sanitize(p) for p in task.path]
@@ -322,6 +345,7 @@ def _download_sync(task: DownloadTask):
     if dest.exists() and dest.stat().st_size > 0:
         task.status = "skipped"
         task.downloaded = task.size
+        _cancel_events.pop(task.id, None)
         send({"type": "update", "task": task.to_dict()})
         return
 
@@ -333,6 +357,7 @@ def _download_sync(task: DownloadTask):
         "-y", str(tmp),
     ]
 
+    proc = None
     req = urllib.request.Request(task.url)
     try:
         with urlopen(req, timeout=60) as resp:
@@ -340,6 +365,9 @@ def _download_sync(task: DownloadTask):
             last_update_bytes = 0
             try:
                 while True:
+                    if cancel.is_set():
+                        proc.kill()
+                        raise RuntimeError("cancelled")
                     buf = resp.read(1024 * 1024)  # 1 MB chunks
                     if not buf:
                         break
@@ -360,12 +388,23 @@ def _download_sync(task: DownloadTask):
         task.downloaded = task.size or task.downloaded
         send({"type": "update", "task": task.to_dict()})
 
+    except RuntimeError as e:
+        tmp.unlink(missing_ok=True)
+        if str(e) == "cancelled":
+            task.status = "cancelled"
+            task.error = ""
+        else:
+            task.status = "error"
+            task.error = str(e)
+        send({"type": "update", "task": task.to_dict()})
     except Exception as e:
         tmp.unlink(missing_ok=True)
         task.status = "error"
         task.error = str(e)
         send({"type": "update", "task": task.to_dict()})
         raise
+    finally:
+        _cancel_events.pop(task.id, None)
 
 
 # Serve the frontend last so API routes take priority
