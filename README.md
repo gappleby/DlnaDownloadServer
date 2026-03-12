@@ -172,7 +172,6 @@ The backend exposes a small REST API that the frontend uses. It can also be call
 │   ├── main.py          # FastAPI application
 │   └── static/
 │       └── index.html   # Single-page frontend
-├── fetch_downloader.py  # Standalone CLI alternative (no dependencies)
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -182,28 +181,6 @@ The backend exposes a small REST API that the frontend uses. It can also be call
     └── workflows/
         └── docker-publish.yml  # Builds and pushes to GHCR on push to main
 ```
-
----
-
-## CLI Alternative
-
-`fetch_downloader.py` is a self-contained script with no external dependencies (only ffmpeg required) for use without Docker:
-
-```bash
-# List all recorded shows
-python fetch_downloader.py list
-
-# Download everything
-python fetch_downloader.py download --dest ./recordings
-
-# Download a specific show (use ID from list command)
-python fetch_downloader.py download --show-id 12 --dest ./recordings
-
-# Preview without downloading
-python fetch_downloader.py download --dry-run
-```
-
-The CLI always uses HD (lossless copy) mode.
 
 ---
 

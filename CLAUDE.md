@@ -9,25 +9,6 @@ This project provides two interfaces for downloading TV recordings from a **Fetc
 1. **CLI script** — `fetch_downloader.py`: standalone Python script, no external dependencies beyond ffmpeg on PATH.
 2. **Web service** (in progress) — a FastAPI app under `app/` served via Docker; the `app/` directory does not yet exist.
 
-## Running the CLI
-
-```bash
-# List all recorded shows
-python fetch_downloader.py list
-
-# Download all recordings
-python fetch_downloader.py download --dest ./recordings
-
-# Download a specific show container by ID
-python fetch_downloader.py download --show-id <ID> --dest ./recordings
-
-# Preview without downloading
-python fetch_downloader.py download --dry-run
-```
-
-ffmpeg must be on PATH, or set `FFMPEG_PATH` env var:
-- Windows: `winget install ffmpeg` or `choco install ffmpeg`
-
 ## Running via Docker
 
 Copy `.env` and set your values, then:
@@ -45,14 +26,6 @@ The web service exposes port `8000`. Output files are written to `OUTPUT_DIR` (d
 On a Linux Docker host (no Docker Desktop), use `network_mode: host` in `docker-compose.yml` to reach the LAN device at `10.0.0.14`.
 
 ## Architecture
-
-### CLI (`fetch_downloader.py`)
-
-- `browse(object_id)` — sends a UPnP SOAP `Browse` request to `http://10.0.0.14:49152/web/cds_control` and returns the parsed DIDL-Lite XML.
-- `get_items(object_id)` — recursively walks containers, collecting video item metadata (title, show name, URL, size, duration).
-- `download_item(item, dest_dir, ffmpeg)` — streams TS from the item URL via HTTP, pipes directly into `ffmpeg` stdin for remux to `.mkv`. Uses a `.mkv.tmp` temp file; renames on success, deletes on failure. Skips if destination already exists with non-zero size.
-- `list_shows()` — lists top-level containers (one per recorded show) with child counts.
-- Container ID `1` is the root Recordings container on Fetch TV boxes.
 
 ### Web Service (`app/`)
 
