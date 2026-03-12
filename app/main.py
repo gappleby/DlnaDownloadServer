@@ -262,6 +262,22 @@ async def api_clear_done():
     return {"removed": len(to_remove)}
 
 
+@app.delete("/api/queue/active")
+async def api_cancel_all():
+    cancelled = 0
+    for task in list(downloads.values()):
+        if task.status not in ("queued", "downloading"):
+            continue
+        event = _cancel_events.get(task.id)
+        if event:
+            event.set()
+        else:
+            task.status = "cancelled"
+            await _broadcast({"type": "update", "task": task.to_dict()})
+        cancelled += 1
+    return {"cancelled": cancelled}
+
+
 @app.delete("/api/queue/{task_id}")
 async def api_cancel(task_id: str):
     task = downloads.get(task_id)

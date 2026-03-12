@@ -312,6 +312,7 @@
   <div class="queue-panel">
     <div class="panel-header">
       <h2>Download Queue</h2>
+      <button class="btn-clear" id="btn-cancel-all">Cancel All</button>
       <button class="btn-clear" id="btn-clear">Clear Done</button>
     </div>
     <div class="queue-scroll" id="queue">
@@ -346,7 +347,11 @@ function esc(s) {
 }
 
 function buildTree(children, path, depth, parentEl) {
-  for (const child of children) {
+  const sorted = [...children].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'container' ? -1 : 1;
+    return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' });
+  });
+  for (const child of sorted) {
     parentEl.appendChild(child.type === 'container'
       ? buildContainer(child, path, depth)
       : buildItem(child, path, depth));
@@ -599,6 +604,10 @@ function connectSSE() {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+
+document.getElementById('btn-cancel-all').addEventListener('click', async () => {
+  await fetch('api/queue/active', { method: 'DELETE' });
+});
 
 document.getElementById('btn-clear').addEventListener('click', async () => {
   await fetch('api/queue/done', { method: 'DELETE' });
