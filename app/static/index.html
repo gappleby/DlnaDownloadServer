@@ -643,8 +643,24 @@ function renderQueueItem(task) {
 }
 
 // ---------------------------------------------------------------------------
-// SSE
+// Progress: SSE or polling depending on server config
 // ---------------------------------------------------------------------------
+
+function handleTaskEvent(task) {
+  renderQueueItem(task);
+  if (task.url && task.quality) {
+    const key = `${task.url}::${task.quality}`;
+    if (task.status === 'cancelled') {
+      queuedKeys.delete(key);
+      document.querySelectorAll(`.video-item[data-url="${CSS.escape(task.url)}"] .btn-q.${task.quality}`).forEach(b => {
+        b.disabled = false;
+        b.textContent = task.quality.toUpperCase();
+      });
+    } else {
+      queuedKeys.add(key);
+    }
+  }
+}
 
 function connectSSE() {
   const es = new EventSource('api/progress');
@@ -652,34 +668,55 @@ function connectSSE() {
   es.onmessage = (e) => {
     let data;
     try { data = JSON.parse(e.data); } catch { return; }
-
     if (data.type === 'cleared') {
       data.ids.forEach(id => document.getElementById(`task-${id}`)?.remove());
       updateQueueEmpty();
       updateQueueBadge?.();
       return;
     }
-    if (data.task) {
-      renderQueueItem(data.task);
-      if (data.task.url && data.task.quality) {
-        const key = `${data.task.url}::${data.task.quality}`;
-        if (data.task.status === 'cancelled') {
-          queuedKeys.delete(key);
-          document.querySelectorAll(`.video-item[data-url="${CSS.escape(data.task.url)}"] .btn-q.${data.task.quality}`).forEach(b => {
-            b.disabled = false;
-            b.textContent = data.task.quality.toUpperCase();
-          });
-        } else {
-          queuedKeys.add(key);
-        }
-      }
-    }
+    if (data.task) handleTaskEvent(data.task);
   };
 
   es.onerror = () => {
     es.close();
     setTimeout(connectSSE, 4000);
   };
+}
+
+function startPolling(intervalSecs) {
+  // Track rendered task states so we only update the DOM on changes
+  const lastSeen = {};
+
+  async function poll() {
+    try {
+      const tasks = await (await fetch('api/queue')).json();
+      const currentIds = new Set(tasks.map(t => t.id));
+
+      // Remove tasks that are no longer in the queue (cleared server-side)
+      Object.keys(lastSeen).forEach(id => {
+        if (!currentIds.has(id)) {
+          document.getElementById(`task-${id}`)?.remove();
+          delete lastSeen[id];
+        }
+      });
+
+      tasks.forEach(t => {
+        const sig = `${t.status}:${t.progress}:${t.error}`;
+        if (lastSeen[t.id] !== sig) {
+          lastSeen[t.id] = sig;
+          handleTaskEvent(t);
+        }
+      });
+
+      updateQueueEmpty();
+      updateQueueBadge?.();
+    } catch(e) {
+      console.warn('Poll failed:', e);
+    }
+  }
+
+  poll(); // immediate first tick
+  setInterval(poll, intervalSecs * 1000);
 }
 
 // ---------------------------------------------------------------------------
@@ -698,11 +735,15 @@ document.getElementById('btn-clear').addEventListener('click', async () => {
 });
 
 async function init() {
+  let progressMode = 'sse';
+  let pollInterval = 3;
   try {
     const cfg = await (await fetch('api/config')).json();
     document.getElementById('page-title').textContent = cfg.app_name;
     document.getElementById('app-name').textContent = cfg.app_name;
     document.getElementById('app-host').textContent = cfg.fetch_host;
+    progressMode = cfg.progress_mode || 'sse';
+    pollInterval = cfg.poll_interval || 3;
   } catch(e) { console.warn('Could not load config', e); }
 
   try {
@@ -715,7 +756,11 @@ async function init() {
     updateQueueEmpty();
   } catch(e) { console.warn('Could not load queue', e); }
 
-  connectSSE();
+  if (progressMode === 'poll') {
+    startPolling(pollInterval);
+  } else {
+    connectSSE();
+  }
 
   const treeEl = document.getElementById('tree');
   try {

@@ -24,6 +24,8 @@ OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "/output"))
 FFMPEG = os.environ.get("FFMPEG_PATH", "ffmpeg")
 APP_NAME = os.environ.get("APP_NAME", "Fetch TV Downloader")
 ROOT_PATH = os.environ.get("ROOT_PATH", "")
+PROGRESS_MODE = os.environ.get("PROGRESS_MODE", "sse").lower()  # "sse" or "poll"
+POLL_INTERVAL = max(1, int(os.environ.get("POLL_INTERVAL", "3")))
 
 app = FastAPI(root_path=ROOT_PATH)
 
@@ -220,7 +222,8 @@ async def api_browse(object_id: str):
 
 @app.get("/api/config")
 async def api_config():
-    return {"app_name": APP_NAME, "fetch_host": FETCH_HOST, "root_path": ROOT_PATH}
+    return {"app_name": APP_NAME, "fetch_host": FETCH_HOST, "root_path": ROOT_PATH,
+            "progress_mode": PROGRESS_MODE, "poll_interval": POLL_INTERVAL}
 
 
 @app.get("/api/qualities")
